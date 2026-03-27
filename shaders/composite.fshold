@@ -1,0 +1,211 @@
+#version 330 compatibility
+
+uniform sampler2D colortex0;
+uniform sampler2D colortex1;
+uniform sampler2D colortex2;
+uniform sampler2D depthtex0;
+uniform mat4 gbufferProjectionInverse;
+uniform mat4 gbufferModelViewInverse;
+uniform mat4 gbufferProjection;
+uniform mat4 gbufferModelView;
+uniform int frameCounter;
+uniform float viewWidth;
+uniform float viewHeight;
+uniform sampler2D shadowtex0;
+uniform sampler2D shadowtex1; 
+uniform sampler2D shadowcolor0;
+uniform mat4 shadowModelView;
+uniform mat4 shadowProjection;
+uniform mat4 shadowModelViewInverse;
+uniform mat4 shadowProjectionInverse;
+
+in vec2 texcoord;
+
+/* RENDERTARGETS: 0 */
+layout(location = 0) out vec4 color;
+
+#define RAYS 8
+
+#define MARCH_STEPS 16
+#define MARCH_LENGTH 0.5
+#define THICKNESS 0.3
+
+#define SHADOW_SAMPLES 16
+#define SHADOW_RADIUS 0.001
+#define SHADOW_BIAS 0.0005
+
+vec3 getWorldPos(vec2 uv) {
+    float depth = texture2D(depthtex0, uv).r;
+    vec3 ndc = vec3(uv * 2.0 - 1.0, depth * 2.0 - 1.0);
+
+    vec4 clipPos = vec4(ndc, 1.0);
+
+    vec4 viewPos = gbufferProjectionInverse * clipPos;
+
+    viewPos /= viewPos.w;
+
+    vec4 worldPos = gbufferModelViewInverse * viewPos;
+
+    return worldPos.xyz;
+}
+
+
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+vec2 hash2(vec2 p) {
+    return vec2(hash(p), hash(p + vec2(3.1415, 2.7182)));
+}
+
+vec3 cosineSampleHemisphere(float r1, float r2) {
+    float phi = 2.0 *  3.14159265359 * r1;
+
+    float sinTheta = sqrt(r2);
+    float cosTheta = sqrt(1.0 - r2);
+
+    return vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+}
+
+mat3 buildTBN(vec3 normal) {
+    vec3 up = abs(normal.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+
+    vec3 tang = normalize(cross(up, normal));
+    vec3 biTang = cross(normal, tang);
+
+    return mat3(tang, biTang, normal);
+}
+
+vec3[RAYS] generateRays(vec3 normal) {
+    mat3 tbn = buildTBN(normal);
+
+    vec3 rays[RAYS];
+
+    for (int i = 0; i < RAYS; i++) {
+        vec2 seed = texcoord + vec2(float(i) * 0.37, float(i) * 0.19) + float(frameCounter) * 0.017;
+        
+        vec2 rand = hash2(seed);
+
+        vec3 localDir = cosineSampleHemisphere(rand.x, rand.y);
+
+        rays[i] = normalize(tbn * localDir);
+    }
+    return rays;
+}
+
+
+vec2 getScreen(vec3 worldPos) {
+    vec4 viewPos = gbufferModelView * vec4(worldPos, 1.0);
+    vec4 clipPos = gbufferProjection * viewPos;
+
+    vec3 ndc = clipPos.xyz / clipPos.w;
+
+    return ndc.xy * 0.5 + 0.5;
+}
+
+float getLinearDepth(vec2 uv) {
+    float depth = texture2D(depthtex0, uv).r;
+
+    vec3 ndc = vec3(uv * 2.0 - 1.0, depth * 2.0 - 1.0);
+    vec4 clipPos = vec4(ndc, 1.0);
+
+    vec4 viewPos = gbufferProjectionInverse * clipPos;
+    viewPos /= viewPos.w;
+
+    return -viewPos.z;
+}
+
+float getViewDepth(vec3 worldPos) {
+    vec4 viewPos = gbufferModelView * vec4(worldPos, 1.0);
+    return -viewPos.z;
+}
+
+bool marchRay(vec3 rayOrigin, vec3 rayDir, out vec2 hitUV) {
+    float stepSize = MARCH_LENGTH / float(MARCH_STEPS);
+
+    for (int i = 1; i <= MARCH_STEPS; i++) {
+        vec3 samplePos = rayOrigin + rayDir * (stepSize * float(i));
+
+        vec2 sampleUV = getScreen(samplePos);
+
+        if (sampleUV.x < 0.0 || sampleUV.x > 1.0 ||
+            sampleUV.y < 0.0 || sampleUV.y > 1.0) {
+            return false;
+        }
+
+        float rayDepth = getViewDepth(samplePos);
+        float sceneDepth = getLinearDepth(sampleUV);
+
+        if (rayDepth > sceneDepth) {
+            if (rayDepth - sceneDepth < THICKNESS) {
+                hitUV = sampleUV;
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+    return false;
+}
+
+vec3 reconstructNormal(vec2 uv) {
+    vec2 texelSize = 1.0 / vec2(viewWidth, viewHeight);
+    vec3 posCenter = getWorldPos(uv);
+    vec3 posRight  = getWorldPos(uv + vec2(texelSize.x, 0.0));
+    vec3 posUp     = getWorldPos(uv + vec2(0.0, texelSize.y));
+    return normalize(cross(posRight - posCenter, posUp - posCenter));
+}
+
+vec3 worldToShadow(vec3 worldPos) {
+    vec4 shadowViewPos = shadowModelView * vec4(worldPos, 1.0);
+    vec4 shadowClipPos = shadowProjection * shadowViewPos;
+    return shadowClipPos.xyz / shadowClipPos.w * 0.5 + 0.5;
+}
+
+float getShadow(vec3 worldPos) {
+    vec3 coord = worldToShadow(worldPos);
+
+    if (coord.x < 0.0 || coord.x > 1.0 ||
+        coord.y < 0.0 || coord.y > 1.0) {
+        return 1.0;
+    }
+
+    float shadowDepth = texture2D(shadowtex1, coord.xy).r;
+
+    return coord.z - SHADOW_BIAS > shadowDepth ? 0.0 : 1.0;
+}
+
+void main() {
+    float depth = texture2D(depthtex0, texcoord).r;
+    if (depth == 1.0) {
+        color = texture(colortex0, texcoord);
+        return;
+    }
+
+    vec3 worldPos = getWorldPos(texcoord);
+    vec3 sceneColor = texture(colortex0, texcoord).rgb;
+
+    float shadow = getShadow(worldPos);
+
+    float lightLevel = mix(0.3, 1.0, shadow);
+/*
+    vec3 normal = reconstructNormal(texcoord);
+
+    vec3 rayDirs[RAYS] = generateRays(normal);
+
+    vec3 offsetOrigin = worldPos + normal * 0.05;
+
+    vec3 indirectLight = vec3(0.0);
+
+    for (int i = 0; i < RAYS; i++) {
+        vec2 hitUV;
+        if (marchRay(offsetOrigin, rayDirs[i], hitUV)) {
+            indirectLight += texture2D(colortex0, hitUV).rgb;
+        }
+    }
+
+    indirectLight /= 8.0;
+*/
+    color = vec4(sceneColor * lightLevel, 1.0);
+	//color = vec4(texture(colortex0, texcoord).rgb + indirectLight * 0.3, 1.0);
+}
