@@ -7,7 +7,7 @@ in ivec2 vaUV2;
 in vec2 mc_midTexCoord;
 in vec3 vaNormal;
 in vec4 at_tangent;
-in vec2 mc_Entity;
+attribute vec4 mc_Entity;
 
 layout(location = 0) in vec3 position;
 
@@ -30,11 +30,11 @@ out vec4 viewPos;
 void main() {
     texCoord = vaUV0;
     foliageColor = vaColor.rgb;
-    lightMapCoords = (vaUV2 + 0.5) / 256.0;
+    lightMapCoords = vaUV1 / 240.0;
     mat3 normalMatrix = transpose(inverse(mat3(modelViewMatrix)));
     normal = normalize(normalMatrix * vaNormal);
     tangent = vec4(normalize(normalMatrix * at_tangent.xyz), at_tangent.w);
-    mcentity = mc_Entity;
+    mcentity = mc_Entity.xy;
 
     viewPos = modelViewMatrix * vec4(vaPosition + chunkOffset, 1);
 

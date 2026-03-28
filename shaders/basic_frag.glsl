@@ -22,7 +22,7 @@ in vec4 tangent;
 in vec2 mcentity;
 in vec4 viewPos;
 
-#define FRESNEL 3
+#define FRESNEL 1.0
 
 void main() {
     vec3 lightColor = pow(texture(lightmap, lightMapCoords).rgb, vec3(2.2));
@@ -32,7 +32,7 @@ void main() {
     vec4 specularData = texture(specular, texCoord);
 
     vec4 outputColorData = pow(texture(gtexture, texCoord), vec4(2.2));
-    vec3 outputColor = outputColorData.rgb * pow(foliageColor, vec3(2.2)) * lightColor;
+    vec3 outputColor = outputColorData.rgb * pow(foliageColor, vec3(2.2));
     float transparancy = outputColorData.a;
     if (transparancy < .1) {
         discard;
@@ -75,6 +75,11 @@ void main() {
         smoothness = 1.0;
     }
 
+    if (abs(mcentity.x - 10005.0) < 0.5) {
+        smoothness = 1.0;
+        f0 = 1.0;
+    }
+
     float actualWetness = wetness * (lightMapCoords.y > 0.96 ? 1.0 : 0.0);
     float wetShine = clamp(actualWetness - 0.5 * porosity, 0.0, 1.0);
 
@@ -88,6 +93,8 @@ void main() {
 
     float fresnel = pow(clamp(1.0 + dot(NormalsTex.xyz, rayDir), 0.0, 1.0), 6.0) * FRESNEL;
     float reflectiveStrength = f0 + (1.0 - f0) * fresnel * smoothness;
+
+    colortex3 = vec4(smoothness, reflectiveStrength, (abs(mcentity.x-10006.0) < 0.5 ? 1.0 : 0.0), f0);
 
     vec3 sunDir = normalize(shadowLightPosition);
 
@@ -104,8 +111,8 @@ void main() {
 
     sunReflect *= smoothness;
 
-    outColor0.rgb += reflectiveStrength * sunReflect * (metal ? outputColor : vec3(1.0));
+    outColor0.rgb += reflectiveStrength * sunReflect * (metal ? reflectColor : vec3(1.0));
     outColor0.a = outColor0.a >= 1.0 / 255.0 ? min(1.0, outColor0.a + reflectiveStrength * sunReflect) : outColor0.a;
 
-    outColor0.rgb = clamp(outColor0.rgb + outputColor.rgb * emmisive, 0.0, 1.0);
+    outColor0.rgb = clamp(outColor0.rgb + reflectColor.rgb * emmisive, 0.0, 1.0);
 }

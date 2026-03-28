@@ -96,7 +96,7 @@ void main() {
     vec3 blocklight = lightmap.r * blocklightColor;
 	vec3 skylight = lightmap.g * skylightColor;
 	vec3 ambient = ambientColor;
-	vec3 sunlight = clamp(sunlightColor * 1.5 * (shadow * NdotL), sunlightColor * 0.2, vec3(1.0));
+	vec3 sunlight = clamp(sunlightColor * 1.5 * (shadow * NdotL + 0.2), sunlightColor * 0.2, vec3(0.8));
 
     color = vec4(sceneColor * (sunlight + ambient + skylight + blocklight), sceneAlpha);
 }
