@@ -26,6 +26,7 @@ out vec3 normal;
 out vec4 tangent;
 out vec2 mcentity;
 out vec4 viewPos;
+out vec4 worldPos;
 
 void main() {
     texCoord = vaUV0;
@@ -37,6 +38,8 @@ void main() {
     mcentity = mc_Entity.xy;
 
     viewPos = modelViewMatrix * vec4(vaPosition + chunkOffset, 1);
+    worldPos = gbufferModelViewInverse * viewPos;
+    worldPos.xyz += cameraPosition;
 
     /*
      * Make Leaves Wavy
@@ -45,8 +48,6 @@ void main() {
         float skyLight = lightMapCoords.y;
 
         if (skyLight > 0.9) {
-            vec4 worldPos = gbufferModelViewInverse * viewPos;
-            worldPos.xyz += cameraPosition;
             worldPos.xyz += sin(worldTime*.1) * .02 + sin(worldTime*.1) * .02;
             viewPos = gbufferModelView * vec4(worldPos.xyz - cameraPosition, 1.0);
         }
@@ -57,8 +58,6 @@ void main() {
     */
     if (mc_Entity.x == 10002.0) {
         if (texCoord.y < mc_midTexCoord.y) {
-            vec4 worldPos = gbufferModelViewInverse * viewPos;
-            worldPos.xyz += cameraPosition;
             worldPos.xyz += sin(worldTime*.1) * .05;
             viewPos = gbufferModelView * vec4(worldPos.xyz - cameraPosition, 1.0);
         }

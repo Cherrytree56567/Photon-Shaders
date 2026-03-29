@@ -8,6 +8,7 @@ uniform mat4 gbufferProjection;
 uniform mat4 gbufferProjectionInverse;
 uniform float near;
 uniform float far;
+uniform int isEyeInWater;
 
 /* RENDERTARGETS: 0 */
 layout(location = 0) out vec4 OutColor;
@@ -32,10 +33,6 @@ float getDepthAt(vec2 uv) {
     return lineariseDepth(texture(depthtex0, uv).r);
 }
 
-/*
-const bool colortex0MipmapEnabled = true;
-*/
-
 void main() {
     OutColor = texture(colortex0, texcoord);
 
@@ -56,8 +53,11 @@ void main() {
     float reflectiveStrength = PBR.g;
     float isWater = PBR.b;
     float f0 = PBR.a;
+    if (isEyeInWater == 1) {
+        return;
+    }
 
-    if ((smoothness * reflectiveStrength > REFLECTION_THRESHOLD) || isWater > 0.5) {
+    if ((smoothness * reflectiveStrength > REFLECTION_THRESHOLD) || (isWater > 0.5 && isEyeInWater != 1)) {
         vec3 pos = vec3(texcoord, depth) * 2.0 - 1.0;
         vec3 lastRayPos = pos * 0.5 + 0.5;
         pos = projectAndDivide(gbufferProjectionInverse, pos);
@@ -74,7 +74,7 @@ void main() {
 
         float tracingDist = raySPD.z > 0.0 ? abs(pos.z) : far;
 
-        for (float i = 1.0; i < SSR_STEPS && !hit && !OutOfBounds; i++) {
+        for (float i = 1.0; i < SSR_STEPS; i++) {
             rayPos = (pos + raySPD.xyz * tracingDist * pow(i / SSR_STEPS, 2.0));
 
             vec4 rayPos2 = gbufferProjection * vec4(rayPos.xyz, 1.0);

@@ -4,15 +4,18 @@ uniform sampler2D gtexture;
 uniform sampler2D lightmap;
 uniform sampler2D specular;
 uniform sampler2D normals;
+uniform sampler2D water;
 uniform float sunAngle;
 uniform vec3 shadowLightPosition;
 uniform float wetness;
+uniform int worldTime;
 
-/* DRAWBUFFERS:0123 */
+/* DRAWBUFFERS:01234 */
 layout(location = 0) out vec4 outColor0;
 layout(location = 1) out vec4 lightmapOut;
 layout(location = 2) out vec4 normalOut;
 layout(location = 3) out vec4 colortex3;
+layout(location = 4) out vec4 bloomOut;
 
 in vec2 texCoord;
 in vec3 foliageColor;
@@ -21,8 +24,13 @@ in vec3 normal;
 in vec4 tangent;
 in vec2 mcentity;
 in vec4 viewPos;
+in vec4 worldPos;
 
 #define FRESNEL 1.0
+
+/*
+const int colortex2Format = RGBA16F;
+*/
 
 void main() {
     vec3 lightColor = pow(texture(lightmap, lightMapCoords).rgb, vec3(2.2));
@@ -43,13 +51,16 @@ void main() {
         sky_color = vec3(0.0);
     }
 
+    if ((abs(mcentity.x - 10007.0) < 0.5) && (outputColorData.r > 0.5)) {
+        bloomOut = vec4(1.0, 0.38, 0.0, 1.0);
+    } else {
+        bloomOut = vec4(0.0, 0.0, 0.0, 0.0);
+    }
+
     vec3 bitangent = cross(tangent.rgb, normal.xyz) * tangent.w;
     mat3 TBNMatrix = mat3(tangent.xyz, bitangent.xyz, normal.xyz);
 
     vec4 NormalsTex = texture(normals, texCoord).rgba;
-    NormalsTex.xy = NormalsTex.xy * 2.0 - 1.0;
-    NormalsTex.z = sqrt(max(0.0, 1.0 - dot(NormalsTex.xy,  NormalsTex.xy)));
-    NormalsTex.xyz = normalize(TBNMatrix * NormalsTex.xyz);
 
     float f0 = specularData.g;
     bool metal = specularData.g >= 229.5;
@@ -91,19 +102,21 @@ void main() {
 
     vec3 rayDir = normalize(viewPos.xyz);
 
-    float fresnel = pow(clamp(1.0 + dot(NormalsTex.xyz, rayDir), 0.0, 1.0), 6.0) * FRESNEL;
+    vec3 tbnNormal = normalize(TBNMatrix * (NormalsTex.xyz * 2.0 - 1.0));
+
+    float fresnel = pow(clamp(1.0 + dot(tbnNormal, rayDir), 0.0, 1.0), 6.0) * FRESNEL;
     float reflectiveStrength = f0 + (1.0 - f0) * fresnel * smoothness;
 
     colortex3 = vec4(smoothness, reflectiveStrength, (abs(mcentity.x-10006.0) < 0.5 ? 1.0 : 0.0), f0);
 
     vec3 sunDir = normalize(shadowLightPosition);
 
-    float lightDot = clamp(dot(sunDir, NormalsTex.xyz), 0.0, 1.0); 
+    float lightDot = clamp(dot(sunDir, tbnNormal), 0.0, 1.0); 
     float diffuse = lightDot * (1.0 - reflectiveStrength) + 0.2;
     if (mcentity.x == 10005.0) diffuse = 0.5;
     outColor0 = pow(vec4(reflectColor * diffuse, transparancy), vec4(1/2.2));
 
-    vec3 reflectedRay = reflect(rayDir, NormalsTex.rgb);
+    vec3 reflectedRay = reflect(rayDir, tbnNormal);
 
     float sunReflect = pow(clamp(dot(reflectedRay, sunDir), 0.0, 1.0), 1.0 + 11.0 * smoothness);
 
