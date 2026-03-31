@@ -9,6 +9,7 @@ uniform float sunAngle;
 uniform vec3 shadowLightPosition;
 uniform float wetness;
 uniform int worldTime;
+uniform int entityId;
 
 /* DRAWBUFFERS:01234 */
 layout(location = 0) out vec4 outColor0;
@@ -39,11 +40,21 @@ void main() {
 
     vec4 specularData = texture(specular, texCoord);
 
-    vec4 outputColorData = pow(texture(gtexture, texCoord), vec4(2.2));
+    vec4 gtex = texture(gtexture, texCoord);
+
+    vec4 outputColorData = pow(gtex, vec4(2.2));
     vec3 outputColor = outputColorData.rgb * pow(foliageColor, vec3(2.2));
     float transparancy = outputColorData.a;
     if (transparancy < .1) {
         discard;
+    }
+
+    bloomOut = vec4(0.0, 0.0, 0.0, 0.0);
+
+    bool isEndermanEye = gtex.r > 0.5 && gtex.b > 0.4 && gtex.g < 0.3;
+
+    if (isEndermanEye && (entityId == 1)) {
+        bloomOut = vec4(1.0, 0.0, 0.6, 1.0);
     }
 
     vec3 sky_color = vec3(0.0, 0.0, 1.0);
@@ -53,8 +64,6 @@ void main() {
 
     if ((abs(mcentity.x - 10007.0) < 0.5) && (outputColorData.r > 0.5)) {
         bloomOut = vec4(1.0, 0.38, 0.0, 1.0);
-    } else {
-        bloomOut = vec4(0.0, 0.0, 0.0, 0.0);
     }
 
     vec3 bitangent = cross(tangent.rgb, normal.xyz) * tangent.w;
@@ -117,24 +126,10 @@ void main() {
     float isMoon = sunAngle > 0.5 ? 1.0 : 0.0;
     float moonFactor = 1.0 - isMoon * 0.88;
 
-    float lightDot = clamp(dot(sunDir, tbnNormal), 0.0, 1.0) * moonFactor; 
-    float diffuse = lightDot * (1.0 - reflectiveStrength) + 0.2;
+    float diffuse = 0.3;
     if (mcentity.x == 10005.0) diffuse = 0.5;
 
-    vec3 torchLight = pow(blockLight, 2.0) * torchColor * 1.5;
+    vec3 torchLight = pow(blockLight, 2.0) * torchColor * 0.5;
     
     outColor0 = pow(vec4(reflectColor * diffuse + (reflectColor * torchLight), transparancy), vec4(1/2.2));
-
-    vec3 reflectedRay = reflect(rayDir, tbnNormal);
-
-    float sunReflect = pow(clamp(dot(reflectedRay, sunDir), 0.0, 1.0), 1.0 + 11.0 * smoothness);
-
-    sunReflect *= clamp(dot(normal.xyz, sunDir) * 100.0, 0.0, 1.0);
-
-    sunReflect *= smoothness;
-
-    outColor0.rgb += reflectiveStrength * sunReflect * (metal ? reflectColor : vec3(1.0));
-    outColor0.a = outColor0.a >= 1.0 / 255.0 ? min(1.0, outColor0.a + reflectiveStrength * sunReflect) : outColor0.a;
-
-    outColor0.rgb = clamp(outColor0.rgb + reflectColor.rgb * emmisive, 0.0, 1.0);
 }
