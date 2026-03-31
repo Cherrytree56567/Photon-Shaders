@@ -31,7 +31,7 @@ out vec4 worldPos;
 void main() {
     texCoord = vaUV0;
     foliageColor = vaColor.rgb;
-    lightMapCoords = vaUV1 / 240.0;
+    lightMapCoords = vaUV2 / 240.0;
     mat3 normalMatrix = transpose(inverse(mat3(modelViewMatrix)));
     normal = normalize(normalMatrix * vaNormal);
     tangent = vec4(normalize(normalMatrix * at_tangent.xyz), at_tangent.w);

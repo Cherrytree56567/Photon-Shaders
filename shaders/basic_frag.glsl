@@ -111,10 +111,16 @@ void main() {
 
     vec3 sunDir = normalize(shadowLightPosition);
 
+    float blockLight = lightMapCoords.x;
+    vec3 torchColor = vec3(0.8, 0.5, 0.1);
+
     float lightDot = clamp(dot(sunDir, tbnNormal), 0.0, 1.0); 
     float diffuse = lightDot * (1.0 - reflectiveStrength) + 0.2;
     if (mcentity.x == 10005.0) diffuse = 0.5;
-    outColor0 = pow(vec4(reflectColor * diffuse, transparancy), vec4(1/2.2));
+
+    vec3 torchLight = pow(blockLight, 2.0) * torchColor * 1.5;
+    
+    outColor0 = pow(vec4(reflectColor * diffuse + (reflectColor * torchLight), transparancy), vec4(1/2.2));
 
     vec3 reflectedRay = reflect(rayDir, tbnNormal);
 

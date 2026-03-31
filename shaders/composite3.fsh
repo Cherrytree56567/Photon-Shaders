@@ -21,8 +21,9 @@ const int colortex4Format = RGBA16F;
 const bool colortex4MipmapEnabled = true;
 */
 
-#define BLOOM_STEPS 6
-#define BLOOM_RADIUS 10.0
+#define BLOOM_RAYS 16
+#define BLOOM_STEPS 20
+#define BLOOM_DIST 0.08
 
 vec3 projectAndDivide(mat4 projectionMatrix, vec3 position){
     vec4 homPos = projectionMatrix * vec4(position, 1.0);
@@ -41,29 +42,25 @@ void main() {
     OutColor = texture(colortex0, texcoord);
 
     float depth = texture(depthtex0, texcoord).r;
-    if (depth == 1.0) {
-        return;
-    }
 
     vec3 bloom = vec3(0.0);
-    float blurSize = 0.004;
-    float radius = BLOOM_RADIUS;
-    float totalWeight = 0.0;
-    float linearD = lineariseDepth(depth);
-    float lod = log2(linearD / near) * 0.5;
+    for (int r = 0; r < BLOOM_RAYS; r++) {
+        float angle = (float(r) / float(BLOOM_RAYS)) * 3.14159 * 2.0;
+        vec2 rayDir = vec2(cos(angle), sin(angle));
 
-    for (int x = -10; x <= 10; x++) {
-        for (int y = -10; y <= 10; y++) {
-            float dist = length(vec2(x, y));
-            if (dist <= radius) {
-                float weight = exp(-(dist * dist) / (2.0 * radius * radius));
-                vec2 offset = vec2(x, y) * blurSize;
-                bloom += textureLod(colortex4, texcoord + offset, lod).rgb * weight;
-                totalWeight += weight;
-            }
+        for (int s = 1; s <= BLOOM_STEPS; s++) {
+            float t = float(s) / float(BLOOM_STEPS);
+            vec2 sampleUV = texcoord + rayDir * t * BLOOM_DIST;
+
+            float weight = 1.0 - t;
+            bloom += texture(colortex4, sampleUV).rgb * weight;
         }
     }
 
-    bloom /= totalWeight;
-    OutColor.rgb += bloom * 5.5;
+    bloom /= float(BLOOM_RAYS * BLOOM_STEPS);
+    OutColor.rgb += bloom * 9.0;
+
+    if (depth == 1.0) {
+        return;
+    }
 }
