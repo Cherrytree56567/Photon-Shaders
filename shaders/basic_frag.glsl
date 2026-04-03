@@ -93,6 +93,7 @@ void main() {
 
     float actualWetness = wetness * (lightMapCoords.y > 0.96 ? 1.0 : 0.0);
     float wetShine = clamp(actualWetness - 0.5 * porosity, 0.0, 1.0);
+    wetShine *= smoothness;
 
     f0 += (1.0 - f0) * wetShine * 0.7;
     smoothness += (1.0 - smoothness) * wetShine;
@@ -121,7 +122,7 @@ void main() {
     float diffuse = lightDot * (1.0 - reflectiveStrength) + 0.2;
     if (mcentity.x == 10005.0) diffuse = 0.5;
 
-    vec3 torchLight = pow(blockLight, 2.0) * torchColor * 1.5;
+    vec3 torchLight = pow(blockLight, 2.0) * torchColor * 0.8;
     
     outColor0 = pow(vec4(reflectColor * diffuse + (reflectColor * torchLight), transparancy), vec4(1/2.2));
 

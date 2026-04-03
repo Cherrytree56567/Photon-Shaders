@@ -4,6 +4,7 @@ uniform sampler2D colortex0;
 uniform sampler2D colortex1;
 uniform sampler2D colortex2;
 uniform sampler2D depthtex0;
+uniform sampler2D endsky;
 uniform mat4 gbufferProjectionInverse;
 uniform mat4 gbufferModelViewInverse;
 uniform mat4 gbufferProjection;
@@ -70,11 +71,21 @@ const vec3 blocklightColor = vec3(0.8, 0.5, 0.08);
 const vec3 skylightColor = vec3(0.05, 0.15, 0.3);
 const vec3 sunlightColor = vec3(1.0);
 const vec3 ambientColor = vec3(0.3);
+
+#define PI 3.14159265
  
 void main() {
     float depth = texture2D(depthtex0, texcoord).r;
     if (depth == 1.0) {
-        color = texture(colortex0, texcoord);
+        vec4 clipPos = vec4(texcoord * 2.0 - 1.0, 1.0, 1.0);
+        vec4 viewPos = gbufferProjectionInverse * clipPos;
+        viewPos /= viewPos.w;
+        vec3 worldDir = normalize((gbufferModelViewInverse * vec4(viewPos.xyz, 0.0)).xyz);
+
+        float u = 0.5 + atan(worldDir.z, worldDir.x) / (2.0 * PI);
+        float v = 0.5 - asin(worldDir.y) / PI;
+
+        color = vec4(texture(endsky, vec2(u, v)).rgb, 1.0);
         return;
     }
 
